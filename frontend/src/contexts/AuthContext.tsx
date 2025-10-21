@@ -59,13 +59,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check authentication status when the component mounts
   useEffect(() => {
     const verifyAuth = async () => {
-      // Limit the number of auth checks on mount to prevent loops
-      if (authCheckCount.current === 0) {
-        authCheckCount.current++;
-        await checkAuth();
+      // Only check auth if we have some indication the user might be logged in
+      const hasStoredUser = localStorage.getItem("user");
+      const hasAccessToken = localStorage.getItem("accessToken");
+      const hasCookie = document.cookie.includes("accessToken=") || document.cookie.includes("dashboard_session=");
+
+      // If we have any auth data, verify it
+      if (hasStoredUser || hasAccessToken || hasCookie) {
+        if (authCheckCount.current === 0) {
+          authCheckCount.current++;
+          await checkAuth();
+        }
+      } else {
+        // No auth data found, mark as checked but not authenticated
+        setState({
+          user: null,
+          isLoading: false,
+          error: null,
+          isAuthenticated: false,
+          authChecked: true,
+        });
       }
     };
-    
+
     verifyAuth();
   }, []);
 
@@ -147,15 +163,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             console.log("Attempting token refresh...");
             // Call your refresh token endpoint here
-            const refreshResponse = await fetch(`${API_URL}/api/v1/auth/refresh/`, {
+            const refreshResponse = await fetch(`${API_URL}/api/v1/auth/token/refresh/`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                refresh: localStorage.getItem("refreshToken")
-              }),
-              credentials: 'include',
+              credentials: 'include', // Use cookies for refresh token
             });
             
             if (refreshResponse.ok) {
