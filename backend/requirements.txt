@@ -140,8 +140,8 @@ prompt_toolkit==3.0.47
 proto-plus==1.24.0
 protobuf==4.25.3
 psutil==5.9.8
-psycopg==3.1.19
-psycopg-binary==3.1.19
+psycopg==3.2.3
+psycopg-binary==3.2.3
 psycopg2-binary==2.9.9
 pyarrow==16.1.0
 pyasn1==0.6.0
@@ -172,9 +172,9 @@ python-social-auth==0.3.6
 python-socketio==5.11.3
 python3-openid==3.2.0
 pytz==2024.1
-pywin32==306
-pywin32-ctypes==0.2.2
-pywinpty==2.0.13
+# pywin32==306  # Windows only
+# pywin32-ctypes==0.2.2  # Windows only
+# pywinpty==2.0.13  # Windows only
 PyYAML==6.0.1
 qrcode==7.4.2
 redis==5.2.0
