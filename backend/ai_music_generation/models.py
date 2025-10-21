@@ -30,17 +30,22 @@ class LLMProvider(models.Model):
 class AIMusicRequest(models.Model):
     """
     Stores each user request for music generation.
-    Linked to a user from the user management module.
+    Linked to a user from the user management module (null for anonymous requests).
     References a chosen LLM provider from shared.llm_providers.
     'prompt_text' is what user describes. 'status' to track lifecycle (e.g. 'pending', 'completed').
     """
     id = models.BigAutoField(primary_key=True, help_text=_("Unique identifier for the AI music request."))
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ai_music_requests', verbose_name=_("User"), help_text=_("User who made the request"))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ai_music_requests', null=True, blank=True, verbose_name=_("User"), help_text=_("User who made the request (null for anonymous requests)"))
     provider = models.ForeignKey(LLMProvider, on_delete=models.RESTRICT, related_name='ai_music_requests', verbose_name=_("LLM Provider"), help_text=_("LLM provider used for the request"))
     prompt_text = models.TextField(verbose_name=_("Prompt Text"), help_text=_("Text prompt provided by the user"))
     status = models.CharField(max_length=255, default='pending', verbose_name=_("Status"), help_text=_("Request lifecycle: 'pending', 'in_progress', 'completed', 'failed'")) # request lifecycle: 'pending', 'in_progress', 'completed', 'failed'
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"), help_text=_("Timestamp when the request was created"))
     updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated At"), help_text=_("Timestamp when the request was last updated"))
+    # Additional fields for anonymous requests
+    style = models.CharField(max_length=100, null=True, blank=True, verbose_name=_("Style/Genre"), help_text=_("Music style or genre"))
+    mood = models.CharField(max_length=100, null=True, blank=True, verbose_name=_("Mood"), help_text=_("Mood of the music"))
+    duration = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(15), MaxValueValidator(600)], verbose_name=_("Duration (seconds)"), help_text=_("Duration of the track in seconds"))
+    format = models.CharField(max_length=10, default='mp3', verbose_name=_("Output Format"), help_text=_("Output audio format (mp3, wav, stems)"))
 
     class Meta:
         verbose_name = _("AI Music Request")
@@ -51,7 +56,9 @@ class AIMusicRequest(models.Model):
         ]
 
     def __str__(self):
-        return f"Request by {self.user} - {self.prompt_text[:50]}..."
+        user_str = str(self.user) if self.user else "Anonymous"
+        prompt_preview = self.prompt_text[:50] if self.prompt_text else f"{self.style or 'music'} - {self.mood or 'N/A'}"
+        return f"Request by {user_str} - {prompt_preview}..."
 
 
 class AIMusicParams(models.Model):

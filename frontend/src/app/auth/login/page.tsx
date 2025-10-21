@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/Label";
 import { Alert } from "@/components/ui/Alert";
 import { useToast } from "@/components/ui/useToast";
 import { Github, Mail, Music } from "lucide-react";
+import { FaGoogle, FaGithub, FaApple } from "react-icons/fa";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -69,10 +70,19 @@ export default function LoginPage() {
   };
 
   const handleSocialLogin = (provider: string) => {
-    toast({
-      title: "Coming soon",
-      description: `${provider} authentication will be available soon.`,
-    });
+    // Map frontend provider names to Django social auth backend names
+    const providerMap: Record<string, string> = {
+      'Google': 'google-oauth2',
+      'GitHub': 'github',
+      'Apple': 'apple-id',
+    };
+
+    const backendProvider = providerMap[provider];
+    if (backendProvider) {
+      // Redirect to Django social auth endpoint
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      window.location.href = `${API_URL}/auth/login/${backendProvider}/?next=${encodeURIComponent(redirectUrl)}`;
+    }
   };
 
   return (
@@ -196,24 +206,33 @@ export default function LoginPage() {
             </div>
 
             {/* Social Login Buttons */}
-            <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="mt-6 space-y-3">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => handleSocialLogin("Google")}
-                className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <Mail className="h-5 w-5" />
-                <span className="text-sm font-medium">Google</span>
+                <FaGoogle className="h-5 w-5 text-red-500" />
+                <span className="text-sm font-medium">Continue with Google</span>
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => handleSocialLogin("GitHub")}
-                className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <Github className="h-5 w-5" />
-                <span className="text-sm font-medium">GitHub</span>
+                <FaGithub className="h-5 w-5" />
+                <span className="text-sm font-medium">Continue with GitHub</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleSocialLogin("Apple")}
+                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaApple className="h-5 w-5" />
+                <span className="text-sm font-medium">Continue with Apple</span>
               </Button>
             </div>
           </div>

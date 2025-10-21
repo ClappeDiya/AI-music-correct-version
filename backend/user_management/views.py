@@ -453,11 +453,11 @@ def refresh_token(request):
 def register(request):
     from django.conf import settings
     from django.db import transaction
-    
+
     try:
         # Extract registration data
         data = request.data
-        
+
         email = data.get('email')
         password = data.get('password')
         first_name = data.get('first_name', '')
@@ -495,7 +495,7 @@ def register(request):
                 is_staff=True,
                 is_superuser=True
             )
-            
+
             if settings.DEBUG:
                 print(f"Created user with ID: {user.id}, email: {user.email}")
 
@@ -505,12 +505,12 @@ def register(request):
             # Import models directly to ensure we're using the correct ones
             from django.apps import apps
             UserProfile = apps.get_model('user_management', 'UserProfile')
-            
+
             if hasattr(UserProfile, 'default_profile_settings'):
                 profile_settings = UserProfile.default_profile_settings()
             else:
                 profile_settings = {}
-            
+
             # Create the profile as a separate operation
             profile = UserProfile.objects.create(
                 user=user,
@@ -520,7 +520,7 @@ def register(request):
                 settings=profile_settings
             )
             profile_created = True
-            
+
             if settings.DEBUG:
                 print(f"Created profile for user ID: {user.id}")
         except Exception as profile_error:
@@ -532,7 +532,7 @@ def register(request):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
-        
+
         # Create response data with user info and tokens for backward compatibility
         response_data = {
             'message': 'Registration successful',
@@ -568,7 +568,7 @@ def register(request):
             secure=secure,
             max_age=60 * 60 * 24 * 7  # 7 days in seconds
         )
-        
+
         # Set a non-httpOnly cookie that the frontend can read to know user is logged in
         response.set_cookie(
             'dashboard_session',
@@ -578,19 +578,68 @@ def register(request):
             secure=secure,
             max_age=60 * 60 * 24  # 1 day in seconds
         )
-        
+
         # Log in the user for session authentication as well
         from django.contrib.auth import login as django_login
         django_login(request, user)
-        
+
         return response
 
     except Exception as e:
         # Log the error for debugging
         if settings.DEBUG:
             print(f"Registration error: {str(e)}")
-        
+
         return Response({
             'error': 'Registration failed',
             'detail': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_usage_quota(request):
+    """Get user's current usage and quota information."""
+    from ai_music_generation.models import AIMusicRequest
+    from datetime import timedelta
+
+    user = request.user
+
+    # Get user's subscription tier (simplified - implement based on your billing model)
+    # For now, assume free tier = 5/month, pro = unlimited
+    try:
+        is_pro = hasattr(user, 'usersubscription') and user.usersubscription.is_active and user.usersubscription.plan.name.lower() == 'pro'
+    except:
+        is_pro = False
+
+    # Calculate usage this month
+    month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_usage = AIMusicRequest.objects.filter(
+        user=user,
+        created_at__gte=month_start
+    ).count()
+
+    # Calculate usage today
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_usage = AIMusicRequest.objects.filter(
+        user=user,
+        created_at__gte=today_start
+    ).count()
+
+    # Determine quota
+    monthly_quota = -1 if is_pro else 5  # -1 means unlimited
+    daily_quota = -1 if is_pro else 2
+
+    return Response({
+        'monthly': {
+            'used': month_usage,
+            'limit': monthly_quota,
+            'remaining': monthly_quota - month_usage if monthly_quota > 0 else -1,
+        },
+        'daily': {
+            'used': today_usage,
+            'limit': daily_quota,
+            'remaining': daily_quota - today_usage if daily_quota > 0 else -1,
+        },
+        'plan': 'pro' if is_pro else 'free',
+        'can_generate': is_pro or (month_usage < monthly_quota and today_usage < daily_quota),
+    })

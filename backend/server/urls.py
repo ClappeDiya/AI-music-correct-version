@@ -1,7 +1,7 @@
 from django.urls import path, include
 from django.contrib import admin
 from rest_framework.routers import DefaultRouter
-from .views import RecommendationViewSet, api_root, root_redirect
+from .views import RecommendationViewSet, api_root, root_redirect, global_stats
 from django.views.generic import RedirectView
 
 router = DefaultRouter()
@@ -21,9 +21,11 @@ recommendation_urls = [
 urlpatterns = [
     path('', root_redirect, name='root'),
     path('admin/', admin.site.urls),
+    path('auth/', include('social_django.urls', namespace='social')),  # Social authentication
     path('api/v1/', include([
         path('', api_root, name='api-root'),
         path('', include(router.urls)),
+        path('stats/', global_stats, name='global_stats'),
         path('recommendations/', include(recommendation_urls)),
         path('', include('user_management.urls')),
         path('analytics/', include('data_analytics.urls')),

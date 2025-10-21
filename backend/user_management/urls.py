@@ -17,7 +17,8 @@ from .views import (
     login,
     logout,
     verify_auth,
-    refresh_token
+    refresh_token,
+    get_usage_quota
 )
 
 router = DefaultRouter()
@@ -44,4 +45,5 @@ urlpatterns = [
     path('auth/logout/', logout, name='logout'),
     path('auth/verify/', verify_auth, name='verify_auth'),
     path('auth/token/refresh/', refresh_token, name='token_refresh'),
+    path('usage-quota/', get_usage_quota, name='usage_quota'),
 ]

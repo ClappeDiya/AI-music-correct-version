@@ -1460,7 +1460,7 @@ def process_moderation_check(moderation_id):
     """Process a content moderation check asynchronously."""
     try:
         moderation = ContentModeration.objects.get(id=moderation_id)
-        
+
         # Perform checks based on check_type
         if moderation.check_type == 'copyright':
             results = check_copyright_infringement(moderation.composition)
@@ -1470,13 +1470,168 @@ def process_moderation_check(moderation_id):
             results = assess_quality(moderation.composition)
         else:  # originality
             results = check_originality(moderation.composition)
-        
+
         moderation.check_results = results
         moderation.confidence_score = results.get('confidence', 0.0)
         moderation.status = 'flagged' if results.get('needs_review', False) else 'passed'
         moderation.save()
-        
+
     except Exception as e:
         logger.error(f"Error in moderation check {moderation_id}: {str(e)}")
         moderation.status = 'failed'
         moderation.save()
+
+
+# ==================== ANONYMOUS MUSIC GENERATION ====================
+# Views for anonymous/guest users to try music generation without signup
+
+from rest_framework.decorators import api_view, permission_classes as permission_classes_decorator, throttle_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.throttling import AnonRateThrottle
+import uuid
+
+
+class AnonymousMusicGenerationThrottle(AnonRateThrottle):
+    """Rate limiter for anonymous music generation: 5 requests per hour per IP."""
+    rate = '5/hour'
+
+
+@api_view(['POST'])
+@permission_classes_decorator([AllowAny])
+@throttle_classes([AnonymousMusicGenerationThrottle])
+def generate_anonymous_music(request):
+    """
+    Allow anonymous users to generate music without authentication.
+    Limited to 30-second tracks in MP3 format only.
+    Rate limited to 5 generations per hour per IP.
+    """
+    try:
+        params = request.data
+
+        # Validate and limit parameters for free tier
+        duration = params.get('duration', 30)
+        if duration > 30:
+            return Response({
+                'error': 'Free tier limited to 30 seconds. Sign up for longer tracks.',
+                'max_duration': 30
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Limit duration to 30 seconds max for anonymous
+        duration = min(int(duration), 30)
+
+        # Get or create default provider
+        provider = LLMProvider.objects.filter(active=True).first()
+        if not provider:
+            return Response({
+                'error': 'No active music generation providers available. Please try again later.'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Create anonymous request (no user association)
+        music_request = AIMusicRequest.objects.create(
+            user=None,  # Anonymous
+            provider=provider,
+            status='pending',
+            prompt_text=params.get('prompt', ''),
+            style=params.get('genre', 'electronic'),
+            mood=params.get('mood', 'energetic'),
+            duration=duration,
+            format='mp3'  # Force MP3 for anonymous
+        )
+
+        logger.info(f"Anonymous music request created: {music_request.id}")
+
+        # Queue generation task (simulated for now - will be async in production)
+        # from ai_music_generation.tasks import generate_music_task
+        # generate_music_task.delay(music_request.id)
+
+        # For now, update status to processing
+        music_request.status = 'processing'
+        music_request.save()
+
+        return Response({
+            'requestId': str(music_request.id),
+            'status': 'pending',
+            'message': 'Generation started. Poll status endpoint for updates.',
+            'statusUrl': f'/api/ai-music-requests/anonymous/music/{music_request.id}/status/'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Error in anonymous music generation: {str(e)}")
+        return Response({
+            'error': 'Failed to start music generation. Please try again.',
+            'detail': str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes_decorator([AllowAny])
+def get_anonymous_music_status(request, request_id):
+    """
+    Check status of anonymous music generation request.
+    Returns track data when completed.
+    """
+    try:
+        # Try to parse request_id as int or UUID
+        try:
+            if '-' in str(request_id):
+                # It's a UUID string
+                music_request = AIMusicRequest.objects.get(id=request_id, user=None)
+            else:
+                # It's an integer
+                music_request = AIMusicRequest.objects.get(id=int(request_id), user=None)
+        except ValueError:
+            return Response({
+                'error': 'Invalid request ID format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if completed
+        if music_request.status == 'completed':
+            # Get the generated track
+            track = music_request.generated_tracks.first()
+
+            if track:
+                return Response({
+                    'status': 'completed',
+                    'track': {
+                        'id': str(track.id),
+                        'url': track.audio_file_url or '',
+                        'duration': music_request.duration or 30,
+                        'waveform': track.waveform_data or [],
+                        'title': f"{music_request.style.title() if music_request.style else 'Generated'} Track",
+                        'genre': music_request.style,
+                        'mood': music_request.mood,
+                        'format': music_request.format,
+                    }
+                })
+            else:
+                # Track not ready yet
+                return Response({
+                    'status': 'processing',
+                    'message': 'Track generation in progress...'
+                })
+
+        elif music_request.status == 'failed':
+            return Response({
+                'status': 'failed',
+                'error': 'Music generation failed. Please try again.'
+            })
+
+        else:
+            # Still processing
+            return Response({
+                'status': music_request.status,
+                'message': f'Generation {music_request.status}...'
+            })
+
+    except AIMusicRequest.DoesNotExist:
+        return Response({
+            'error': 'Request not found or expired',
+            'detail': 'Anonymous requests expire after 24 hours'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        logger.error(f"Error fetching anonymous music status: {str(e)}")
+        return Response({
+            'error': 'Failed to fetch status',
+            'detail': str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

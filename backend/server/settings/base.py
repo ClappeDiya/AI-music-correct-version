@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'stripe',
     'django_otp.plugins.otp_totp',
     'rest_framework_simplejwt',
+    'social_django',  # Social authentication
     
     # Local apps
     'user_management',
@@ -80,6 +81,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',  # Social auth
     'ai_dj.middleware.SecurityMiddleware',
 ]
 
@@ -145,6 +147,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'social_django.context_processors.backends',  # Social auth
+                'social_django.context_processors.login_redirect',  # Social auth
             ],
         },
     },
@@ -235,3 +239,72 @@ SUNO_API_BASE = os.getenv('SUNO_API_BASE', 'https://apibox.erweima.ai')
 
 # Default AI Provider Configuration
 DEFAULT_AI_PROVIDER = os.getenv('DEFAULT_AI_PROVIDER', 'openai')
+
+# ==================== SOCIAL AUTHENTICATION ====================
+# Configuration for social-auth-app-django
+
+AUTHENTICATION_BACKENDS = (
+    'social_core.backends.google.GoogleOAuth2',
+    'social_core.backends.github.GithubOAuth2',
+    'social_core.backends.apple.AppleIdAuth',
+    'django.contrib.auth.backends.ModelBackend',  # Default Django auth
+)
+
+# Social Auth URLs
+LOGIN_URL = '/auth/login/'
+LOGIN_REDIRECT_URL = '/project/dashboard/'
+LOGOUT_REDIRECT_URL = '/'
+SOCIAL_AUTH_URL_NAMESPACE = 'social'
+
+# Google OAuth2
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('GOOGLE_OAUTH2_CLIENT_ID', '')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET', '')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+]
+
+# GitHub OAuth2
+SOCIAL_AUTH_GITHUB_KEY = os.getenv('GITHUB_OAUTH_CLIENT_ID', '')
+SOCIAL_AUTH_GITHUB_SECRET = os.getenv('GITHUB_OAUTH_CLIENT_SECRET', '')
+SOCIAL_AUTH_GITHUB_SCOPE = ['user:email']
+
+# Apple Sign In
+SOCIAL_AUTH_APPLE_ID_CLIENT = os.getenv('APPLE_CLIENT_ID', '')
+SOCIAL_AUTH_APPLE_ID_TEAM = os.getenv('APPLE_TEAM_ID', '')
+SOCIAL_AUTH_APPLE_ID_KEY = os.getenv('APPLE_KEY_ID', '')
+SOCIAL_AUTH_APPLE_ID_SECRET = os.getenv('APPLE_PRIVATE_KEY', '')
+SOCIAL_AUTH_APPLE_ID_SCOPE = ['email', 'name']
+
+# Social Auth Pipeline
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'social_core.pipeline.user.get_username',
+    'social_core.pipeline.user.create_user',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+)
+
+# Require email verification
+SOCIAL_AUTH_REQUIRE_SOCIAL_AUTH_EMAIL_VERIFICATION = False
+
+# Allow social account linking
+SOCIAL_AUTH_ASSOCIATE_BY_EMAIL = True
+
+# Disconnect action
+SOCIAL_AUTH_DISCONNECT_PIPELINE = (
+    'social_core.pipeline.disconnect.allowed_to_disconnect',
+    'social_core.pipeline.disconnect.get_entries',
+    'social_core.pipeline.disconnect.revoke_tokens',
+    'social_core.pipeline.disconnect.disconnect',
+)
+
+# Protected user fields
+SOCIAL_AUTH_PROTECTED_USER_FIELDS = ['email']
+
+# JSON web token for API authentication
+SOCIAL_AUTH_JSONFIELD_ENABLED = True

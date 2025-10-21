@@ -72,4 +72,8 @@ router.register(r'content-moderation', views.ContentModerationViewSet, basename=
 # Additionally, we include the login URLs for the browsable API.
 urlpatterns = [
     path('', include(router.urls)),
+
+    # Anonymous music generation endpoints
+    path('anonymous/generate/', views.generate_anonymous_music, name='anonymous_generate'),
+    path('anonymous/music/<int:request_id>/status/', views.get_anonymous_music_status, name='anonymous_status'),
 ]
