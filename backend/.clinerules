@@ -1,0 +1,393 @@
+# Local Windsurf Rules
+# These rules will be applied to Cascade in the current workspace
+
+# Environment Configuration
+env_file = {
+    "required": true,
+    "path": "${workspace}/.env",
+    "template_path": "${workspace}/.env.example",
+    "secrets": [
+        "DJANGO_SECRET_KEY",
+        "JWT_SECRET_KEY",
+        "DATABASE_PASSWORD",
+        "ADMIN_PASSWORD",
+        "SENTRY_DSN",
+        "NEXT_PUBLIC_ANALYTICS_ID",
+        "NEXT_AUTH_SECRET"
+    ]
+}
+
+# Technology Stack Configuration
+tech_stack = {
+    "backend": {
+        "framework": "django",
+        "version": "latest",
+        "requirements": [
+            "django-tenants",
+            "djangorestframework",
+            "djangorestframework-simplejwt",
+            "django-cors-headers",
+            "Pillow",
+            "psycopg2-binary",
+            "python-dotenv",
+            "django-redis",
+            "django-storages",
+            "django-debug-toolbar",
+            "django-tenant-schemas",
+            "sentry-sdk"
+        ],
+        "auth": {
+            "type": "jwt",
+            "provider": "djangorestframework-simplejwt",
+            "token_lifetime": "${JWT_ACCESS_TOKEN_LIFETIME}"
+        }
+    },
+    "frontend": {
+        "framework": {
+            "name": "nextjs",
+            "version": "latest",
+            "config": "app-router"
+        },
+        "language": "typescript",
+        "ui": {
+            "library": "shadcn/ui",
+            "styling": "tailwindcss",
+            "icons": "lucide-react",
+            "notifications": "sonner",
+            "charts": "recharts",
+            "tables": "@tanstack/react-table",
+            "dates": "dayjs"
+        },
+        "state_management": {
+            "server": "@tanstack/react-query",
+            "client": "zustand",
+            "form": "react-hook-form",
+            "validation": "zod"
+        },
+        "internationalization": "next-i18next",
+        "seo": "next-seo",
+        "requirements": [
+            "next",
+            "@tanstack/react-query",
+            "zustand",
+            "axios",
+            "react-hook-form",
+            "zod",
+            "@radix-ui/react-*",
+            "class-variance-authority",
+            "clsx",
+            "tailwind-merge",
+            "next-auth",
+            "next-i18next",
+            "next-seo",
+            "recharts",
+            "@tanstack/react-table",
+            "dayjs",
+            "sonner",
+            "lucide-react",
+            "next-tenant"
+        ],
+        "development": {
+            "typescript": {
+                "strict": true,
+                "paths": true
+            },
+            "testing": {
+                "unit": "vitest",
+                "integration": "testing-library/react",
+                "e2e": "playwright",
+                "coverage_threshold": 80
+            },
+            "linting": {
+                "eslint": {
+                    "extends": [
+                        "next/core-web-vitals",
+                        "prettier"
+                    ],
+                    "plugins": [
+                        "prettier",
+                        "import"
+                    ]
+                },
+                "prettier": {
+                    "semi": false,
+                    "singleQuote": true,
+                    "trailingComma": "es5"
+                }
+            },
+            "git_hooks": {
+                "pre_commit": [
+                    "lint-staged",
+                    "type-check"
+                ],
+                "commit_msg": "commitlint"
+            },
+            "documentation": {
+                "storybook": {
+                    "enabled": true,
+                    "addons": [
+                        "a11y",
+                        "controls",
+                        "docs"
+                    ]
+                },
+                "api": "swagger/openapi"
+            },
+            "monitoring": {
+                "analytics": "next-analytics",
+                "error_tracking": "sentry",
+                "performance": {
+                    "metrics": [
+                        "FCP",
+                        "LCP",
+                        "CLS",
+                        "FID"
+                    ],
+                    "monitoring": "web-vitals"
+                }
+            }
+        }
+    },
+    "database": {
+        "type": "postgresql",
+        "name": "${DB_NAME}",
+        "multi_tenant": true,
+        "isolation_method": "schema",
+        "connection_pooling": true,
+        "backup_strategy": {
+            "frequency": "daily",
+            "retention_days": 30,
+            "storage": "local"
+        }
+    }
+}
+
+# Non-Functional Requirements
+requirements = {
+    "multi_tenancy": {
+        "enabled": true,
+        "isolation": "schema",
+        "auto_create_schema": true,
+        "tenant_middleware": "django_tenants.middleware.main.TenantMainMiddleware
+        "public_schema_name": "public",
+        "tenant_model": "tenants.Client",
+        "domain_model": "tenants.Domain"
+    },
+    "security": {
+        "enforce_schema_isolation": true,
+        "validate_tenant_access": true,
+        "csrf_protection": true,
+        "jwt_authentication": true,
+        "cors": {
+            "enabled": true,
+            "allowed_origins": ["${FRONTEND_URL}"],
+            "allow_credentials": true,
+            "allowed_methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+            "allowed_headers": ["*"],
+            "expose_headers": ["Content-Range", "X-Total-Count"]
+        },
+        "rate_limiting": {
+            "enabled": true,
+            "rate": "${API_RATE_LIMIT}",
+            "scope": "tenant"
+        },
+        "password_policy": {
+            "min_length": 12,
+            "require_special_chars": true,
+            "require_numbers": true,
+            "max_age_days": 90
+        },
+        "headers": {
+            "hsts": true,
+            "x_frame_options": "DENY",
+            "x_content_type_options": "nosniff",
+            "referrer_policy": "same-origin"
+        }
+    },
+    "performance": {
+        "enable_caching": true,
+        "cache_backend": "redis",
+        "connection_pooling": true,
+        "api_pagination": {
+            "default_page_size": 20,
+            "max_page_size": 100
+        },
+        "image_optimization": {
+            "enabled": true,
+            "max_upload_size": "5MB",
+            "allowed_formats": ["jpg", "png", "webp"]
+        }
+    },
+    "compliance": {
+        "gdpr": {
+            "enabled": true,
+            "data_retention_period": "${DATA_RETENTION_DAYS}",
+            "user_consent_required": true,
+            "data_export_format": "json",
+            "right_to_forget": true
+        },
+        "audit_logging": {
+            "enabled": true,
+            "retention_period": "90days",
+            "include_user_agent": true,
+            "include_ip_address": true,
+            "track_changes": true
+        },
+        "data_encryption": {
+            "at_rest": true,
+            "in_transit": true,
+            "key_rotation_days": 30,
+            "algorithm": "AES-256-GCM"
+        }
+    },
+    "accessibility": {
+        "wcag_level": "AA",
+        "aria_labels": "required",
+        "keyboard_navigation": true,
+        "color_contrast": true
+    }
+}
+
+# Development Standards
+standards = {
+    "code_quality": {
+        "linting": {
+            "python": {
+                "tool": "flake8",
+                "max_line_length": 88,
+                "extend_ignore": ["E203", "W503"]
+            },
+            "javascript": {
+                "tool": "eslint",
+                "config": "next/core-web-vitals"
+            }
+        },
+        "formatting": {
+            "python": "black",
+            "javascript": "prettier"
+        },
+        "testing": {
+            "backend": {
+                "framework": "pytest",
+                "coverage": {
+                    "minimum": 80,
+                    "exclude": ["migrations", "tests"]
+                }
+            },
+            "frontend": {
+                "unit": "vitest",
+                "integration": "testing-library",
+                "e2e": "playwright",
+                "coverage_threshold": 80
+            }
+        }
+    },
+    "documentation": {
+        "api": {
+            "format": "openapi",
+            "version": "3.0.0",
+            "ui": "swagger-ui"
+        },
+        "code": {
+            "python": "google-style",
+            "typescript": "tsdoc",
+            "components": "storybook"
+        },
+        "architecture": {
+            "diagrams": "docs/diagrams",
+            "decisions": "docs/adr",
+            "api": "docs/api"
+        }
+    },
+    "git": {
+        "branch_naming": "feature/|bugfix/|hotfix/",
+        "commit_convention": "conventional-commits",
+        "require_pr_review": true,
+        "protected_branches": ["main", "develop"],
+        "hooks": {
+            "pre-commit": ["lint-staged", "type-check"],
+            "commit-msg": "commitlint"
+        }
+    },
+    "ci_cd": {
+        "platform": "github-actions",
+        "stages": ["lint", "test", "build", "deploy"],
+        "environments": ["development", "staging", "production"],
+        "automatic_deployment": {
+            "staging": true,
+            "production": false
+        }
+    }
+}
+
+# Package Managers and Dependencies
+package_managers = {
+    "python": {
+        "tool": "pip",
+        "virtual_env": "venv",
+        "requirements": {
+            "prod": "requirements.txt",
+            "dev": "requirements-dev.txt"
+        }
+    },
+    "javascript": {
+        "tool": "npm",
+        "engine_lock": true,
+        "scripts": {
+            "dev": "next dev",
+            "build": "next build",
+            "start": "next start",
+            "lint": "next lint",
+            "test": "vitest",
+            "e2e": "playwright test"
+        }
+    }
+}
+
+# Database Configuration
+database = {
+    "default_schema": "public",
+    "tenant_schema_prefix": "tenant_",
+    "enable_migrations": true,
+    "backup_enabled": true,
+    "connection_settings": {
+        "host": "${DB_HOST}",
+        "port": "${DB_PORT}",
+        "name": "${DB_NAME}",
+        "user": "${DB_USER}",
+        "password": "${DB_PASSWORD}",
+        "max_connections": 100000,
+        "idle_timeout": 300,
+        "ssl_mode": "require"
+    },
+    "pool": {
+        "min_size": 10,
+        "max_size": 100,
+        "max_overflow": 10,
+        "timeout": 30
+    }
+}
+
+# Environment Variables
+environment = {
+    "PROJECT_ROOT": "${workspace}",
+    "DJANGO_SETTINGS_MODULE": "config.settings",
+    "DJANGO_SECRET_KEY": "${DJANGO_SECRET_KEY}",
+    "DATABASE_URL": "${DATABASE_URL}",
+    "FRONTEND_URL": "${FRONTEND_URL}",
+    "API_URL": "${API_URL}",
+    "CORS_ALLOWED_ORIGINS": "${FRONTEND_URL}",
+    "JWT_SECRET_KEY": "${JWT_SECRET_KEY}",
+    "JWT_ACCESS_TOKEN_LIFETIME": "${JWT_ACCESS_TOKEN_LIFETIME}",
+    "JWT_REFRESH_TOKEN_LIFETIME": "${JWT_REFRESH_TOKEN_LIFETIME}",
+    "MEDIA_ROOT": "${workspace}/media",
+    "STATIC_ROOT": "${workspace}/static",
+    "REDIS_URL": "${REDIS_URL}",
+    "MAX_UPLOAD_SIZE": "5MB",
+    "API_RATE_LIMIT": "100000/hour",
+    "DATA_RETENTION_DAYS": "365",
+    "SENTRY_DSN": "${SENTRY_DSN}",
+    "NEXT_PUBLIC_ANALYTICS_ID": "${NEXT_PUBLIC_ANALYTICS_ID}",
+    "NEXT_AUTH_SECRET": "${NEXT_AUTH_SECRET}",
+    "USE_CDN": "false"
+}

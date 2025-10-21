@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+interface WebSocketMessage {
+  data: string;
+  type: string;
+}
+
+interface UseWebSocketReturn {
+  sendMessage: (message: string) => void;
+  lastMessage: WebSocketMessage | null;
+  readyState: number;
+  reconnect: () => void;
+}
+
+export const useWebSocket = (url: string): UseWebSocketReturn => {
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const [readyState, setReadyState] = useState<number>(WebSocket.CONNECTING);
+  const ws = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const connect = useCallback(() => {
+    ws.current = new WebSocket(url);
+
+    ws.current.onopen = () => {
+      console.log('WebSocket Connected');
+      setReadyState(WebSocket.OPEN);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+
+    ws.current.onclose = () => {
+      console.log('WebSocket Disconnected');
+      setReadyState(WebSocket.CLOSED);
+      // Attempt to reconnect after 3 seconds
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connect();
+      }, 3000);
+    };
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = {
+        data: event.data,
+        type: event.type
+      };
+      setLastMessage(message);
+
+      // Handle different message types
+      try {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case 'mood_update':
+            // Handle mood intensity updates
+            break;
+          case 'genre_update':
+            // Handle genre blend updates
+            break;
+          case 'chord_update':
+            // Handle chord progression updates
+            break;
+          case 'transition_update':
+            // Handle transition point updates
+            break;
+          case 'analysis_update':
+            // Handle analysis results
+            break;
+          default:
+            // Handle unknown message type
+            break;
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+  }, [url]);
+
+  useEffect(() => {
+    connect();
+
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, [connect]);
+
+  const sendMessage = useCallback((message: string) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(message);
+    } else {
+      console.warn('WebSocket is not connected');
+    }
+  }, []);
+
+  const reconnect = useCallback(() => {
+    if (ws.current) {
+      ws.current.close();
+    }
+    connect();
+  }, [connect]);
+
+  return {
+    sendMessage,
+    lastMessage,
+    readyState,
+    reconnect
+  };
+};

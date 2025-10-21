@@ -1,0 +1,39 @@
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export function useAnalyticsData<T>(
+  endpoint: string,
+  page: number = 1,
+  pageSize: number = 50,
+  queryKey: string,
+  filters?: Record<string, any>
+) {
+  return useQuery({
+    queryKey: [queryKey, page, pageSize, filters],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        page_size: pageSize.toString(),
+        ...filters
+      });
+
+      const response = await api.get<PaginatedResponse<T>>(
+        `${endpoint}?${params.toString()}`
+      );
+
+      return {
+        data: response.data.results,
+        totalPages: Math.ceil(response.data.count / pageSize),
+        currentPage: page,
+      };
+    },
+    keepPreviousData: true,
+  });
+} 

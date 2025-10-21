@@ -1,0 +1,15 @@
+{
+  "common": {
+    "select-language": "Select Language",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "settings": {
+    "language": "Language",
+    "theme": "Theme",
+    "notifications": "Notifications"
+  }
+}

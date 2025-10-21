@@ -1,0 +1,149 @@
+import { useState, useEffect } from 'react';
+import { useToast } from '@/components/ui/Usetoast';
+import {
+  lyricPromptApi,
+  lyricDraftApi,
+  lyricEditApi,
+  finalLyricsApi,
+  lyricTimelineApi,
+} from '@/services/lyrics-generation-api';
+import type {
+  LyricPrompt,
+  LyricDraft,
+  LyricEdit,
+  FinalLyrics,
+  LyricTimeline,
+} from '@/types/lyrics-generation';
+
+export function useLyrics(trackId?: number) {
+  const [prompts, setPrompts] = useState<LyricPrompt[]>([]);
+  const [drafts, setDrafts] = useState<LyricDraft[]>([]);
+  const [edits, setEdits] = useState<LyricEdit[]>([]);
+  const [finalLyrics, setFinalLyrics] = useState<FinalLyrics[]>([]);
+  const [timeline, setTimeline] = useState<LyricTimeline[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (trackId) {
+      loadLyrics();
+    }
+  }, [trackId]);
+
+  const loadLyrics = async () => {
+    try {
+      setLoading(true);
+      const [promptsData, draftsData, editsData, finalData, timelineData] = await Promise.all([
+        lyricPromptApi.getAll(),
+        lyricDraftApi.getAll(),
+        lyricEditApi.getAll(),
+        finalLyricsApi.getAll(),
+        lyricTimelineApi.getAll(),
+      ]);
+
+      setPrompts(promptsData);
+      setDrafts(draftsData);
+      setEdits(editsData);
+      setFinalLyrics(finalData);
+      setTimeline(timelineData);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load lyrics data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createPrompt = async (data: Omit<LyricPrompt, 'id' | 'created_at' | 'user'>) => {
+    try {
+      const newPrompt = await lyricPromptApi.create(data);
+      setPrompts([...prompts, newPrompt]);
+      return newPrompt;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create prompt',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const createDraft = async (data: Omit<LyricDraft, 'id' | 'created_at'>) => {
+    try {
+      const newDraft = await lyricDraftApi.create(data);
+      setDrafts([...drafts, newDraft]);
+      return newDraft;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create draft',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const createEdit = async (data: Omit<LyricEdit, 'id' | 'created_at'>) => {
+    try {
+      const newEdit = await lyricEditApi.create(data);
+      setEdits([...edits, newEdit]);
+      return newEdit;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create edit',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const finalizeLyrics = async (data: Omit<FinalLyrics, 'id' | 'created_at' | 'user'>) => {
+    try {
+      const newFinal = await finalLyricsApi.create(data);
+      setFinalLyrics([...finalLyrics, newFinal]);
+      return newFinal;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to finalize lyrics',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const createTimelineEntry = async (data: Omit<LyricTimeline, 'id' | 'created_at'>) => {
+    try {
+      const newEntry = await lyricTimelineApi.create(data);
+      setTimeline([...timeline, newEntry]);
+      return newEntry;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create timeline entry',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  return {
+    prompts,
+    drafts,
+    edits,
+    finalLyrics,
+    timeline,
+    loading,
+    createPrompt,
+    createDraft,
+    createEdit,
+    finalizeLyrics,
+    createTimelineEntry,
+    refresh: loadLyrics,
+  };
+} 

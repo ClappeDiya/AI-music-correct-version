@@ -1,0 +1,162 @@
+import { useState, useEffect, useCallback } from 'react';
+import { multiUserDJService, DJSession, TrackRequest } from '@/services/multiUserDJService';
+import { webSocketService } from '@/services/webSocketService';
+import { useToast } from '@/components/ui/Usetoast';
+
+export function useMultiUserDJ(sessionId: string) {
+  const [session, setSession] = useState<DJSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { toast } = useToast();
+
+  const fetchSession = useCallback(async () => {
+    try {
+      const data = await multiUserDJService.getSession(sessionId);
+      setSession(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch session data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId, toast]);
+
+  useEffect(() => {
+    fetchSession();
+
+    // Connect to WebSocket
+    webSocketService.connect(sessionId);
+
+    // Handle WebSocket events
+    webSocketService.on('users_update', (users) => {
+      setSession((prev) => prev ? { ...prev, participants: users } : prev);
+    });
+
+    webSocketService.on('queue_update', (queue) => {
+      setSession((prev) => prev ? { ...prev, queue } : prev);
+    });
+
+    webSocketService.on('track_update', (track) => {
+      setSession((prev) => prev ? { ...prev, current_track: track } : prev);
+    });
+
+    webSocketService.on('disconnected', () => {
+      toast({
+        title: 'Connection Lost',
+        description: 'Attempting to reconnect...',
+        variant: 'destructive',
+      });
+    });
+
+    webSocketService.on('reconnect_failed', () => {
+      toast({
+        title: 'Connection Failed',
+        description: 'Please refresh the page to reconnect',
+        variant: 'destructive',
+      });
+    });
+
+    return () => {
+      webSocketService.disconnect();
+      webSocketService.removeAllListeners();
+    };
+  }, [sessionId, toast, fetchSession]);
+
+  const requestTrack = useCallback(async (trackData: {
+    track_id: string;
+    title: string;
+    artist: string;
+  }) => {
+    try {
+      const track = await multiUserDJService.requestTrack(sessionId, trackData);
+      toast({
+        title: 'Track Requested',
+        description: `Added ${track.track_title} to the queue`,
+      });
+      return track;
+    } catch (err) {
+      toast({
+        title: 'Request Failed',
+        description: 'Failed to request track',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  }, [sessionId, toast]);
+
+  const voteTrack = useCallback(async (
+    trackRequestId: string,
+    vote: 'up' | 'down'
+  ) => {
+    try {
+      const track = await multiUserDJService.voteTrack(sessionId, trackRequestId, vote);
+      toast({
+        title: 'Vote Recorded',
+        description: `Your ${vote} vote has been recorded`,
+      });
+      return track;
+    } catch (err) {
+      toast({
+        title: 'Vote Failed',
+        description: 'Failed to record vote',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  }, [sessionId, toast]);
+
+  const updateTrackStatus = useCallback(async (
+    trackRequestId: string,
+    status: TrackRequest['status']
+  ) => {
+    try {
+      const track = await multiUserDJService.updateTrackStatus(trackRequestId, status);
+      toast({
+        title: 'Status Updated',
+        description: `Track status updated to ${status}`,
+      });
+      return track;
+    } catch (err) {
+      toast({
+        title: 'Update Failed',
+        description: 'Failed to update track status',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  }, [toast]);
+
+  const leaveSession = useCallback(async () => {
+    try {
+      await multiUserDJService.leaveSession(sessionId);
+      webSocketService.disconnect();
+      toast({
+        title: 'Session Left',
+        description: 'You have left the DJ session',
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to leave session',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  }, [sessionId, toast]);
+
+  return {
+    session,
+    loading,
+    error,
+    requestTrack,
+    voteTrack,
+    updateTrackStatus,
+    leaveSession,
+    refreshSession: fetchSession,
+  };
+}

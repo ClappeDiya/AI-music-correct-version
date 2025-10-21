@@ -1,0 +1,45 @@
+import { useState, useEffect, useCallback } from 'react';
+import { traditionApi } from '@/lib/api/tradition-api';
+import { MusicTradition, CrossCulturalBlend } from '@/lib/api/types';
+
+export function useTraditions() {
+  const [traditions, setTraditions] = useState<MusicTradition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTraditions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await traditionApi.getTraditions();
+      setTraditions(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch traditions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTraditions();
+  }, [fetchTraditions]);
+
+  const getTraditionParameters = useCallback(async (
+    traditionId: string,
+    sectionType: string = 'full'
+  ) => {
+    try {
+      return await traditionApi.getTraditionParameters(traditionId, sectionType);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to fetch parameters');
+    }
+  }, []);
+
+  return {
+    traditions,
+    loading,
+    error,
+    refresh: fetchTraditions,
+    getTraditionParameters,
+  };
+}

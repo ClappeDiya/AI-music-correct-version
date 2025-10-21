@@ -1,0 +1,102 @@
+import { useCallback, useEffect } from 'react';
+import { useAnnouncementStore, announcementService } from '../services/announcementService';
+
+interface UseDJAnnouncementsOptions {
+  sessionId: number;
+  frequency?: 'low' | 'medium' | 'high';
+  onError?: (error: Error) => void;
+}
+
+export const useDJAnnouncements = ({
+  sessionId,
+  frequency = 'medium',
+  onError,
+}: UseDJAnnouncementsOptions) => {
+  const { addToQueue, audioQueue } = useAnnouncementStore();
+
+  const announceTrack = useCallback(async (track: {
+    title: string;
+    artist?: string;
+    genre?: string;
+    mood?: string;
+  }) => {
+    try {
+      // Generate announcement text based on available track info
+      let announcement = `Now playing ${track.title}`;
+      if (track.artist) {
+        announcement += ` by ${track.artist}`;
+      }
+      if (track.genre && Math.random() > 0.5) {
+        announcement += `. This is a ${track.genre} track`;
+      }
+      if (track.mood && Math.random() > 0.7) {
+        announcement += ` perfect for a ${track.mood} mood`;
+      }
+
+      const audioContent = await announcementService.generateAnnouncement(
+        sessionId,
+        announcement
+      );
+
+      addToQueue({ text: announcement, audio: audioContent });
+
+      // If this is the only item in the queue, play it immediately
+      if (audioQueue.length === 0) {
+        await announcementService.playAnnouncement(audioContent);
+      }
+    } catch (error) {
+      console.error('Error announcing track:', error);
+      onError?.(error as Error);
+    }
+  }, [sessionId, addToQueue, audioQueue.length, onError]);
+
+  const announceMoodChange = useCallback(async (mood: string) => {
+    try {
+      const announcement = `Transitioning to ${mood} music`;
+      const audioContent = await announcementService.generateAnnouncement(
+        sessionId,
+        announcement
+      );
+
+      addToQueue({ text: announcement, audio: audioContent });
+
+      if (audioQueue.length === 0) {
+        await announcementService.playAnnouncement(audioContent);
+      }
+    } catch (error) {
+      console.error('Error announcing mood change:', error);
+      onError?.(error as Error);
+    }
+  }, [sessionId, addToQueue, audioQueue.length, onError]);
+
+  const announceCustomMessage = useCallback(async (message: string) => {
+    try {
+      const audioContent = await announcementService.generateAnnouncement(
+        sessionId,
+        message
+      );
+
+      addToQueue({ text: message, audio: audioContent });
+
+      if (audioQueue.length === 0) {
+        await announcementService.playAnnouncement(audioContent);
+      }
+    } catch (error) {
+      console.error('Error announcing custom message:', error);
+      onError?.(error as Error);
+    }
+  }, [sessionId, addToQueue, audioQueue.length, onError]);
+
+  // Cleanup function
+  useEffect(() => {
+    return () => {
+      announcementService.stop();
+    };
+  }, []);
+
+  return {
+    announceTrack,
+    announceMoodChange,
+    announceCustomMessage,
+  };
+};

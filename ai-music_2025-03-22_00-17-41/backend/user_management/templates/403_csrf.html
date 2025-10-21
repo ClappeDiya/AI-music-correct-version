@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>403 Forbidden - CSRF Verification Failed</title>
+  </head>
+  <body>
+    <h1>403 Forbidden</h1>
+    <p>CSRF verification failed. Please refresh the page and try again.</p>
+    {% if reason %}
+    <p>Reason: {{ reason }}</p>
+    {% endif %}
+  </body>
+</html>

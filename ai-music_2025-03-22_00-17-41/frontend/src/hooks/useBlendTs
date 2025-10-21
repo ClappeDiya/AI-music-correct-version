@@ -1,0 +1,94 @@
+import { useState, useCallback } from 'react';
+import { traditionApi } from '@/lib/api/tradition-api';
+import { CrossCulturalBlend } from '@/lib/api/types';
+
+export function useBlend() {
+  const [currentBlend, setCurrentBlend] = useState<CrossCulturalBlend | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createBlend = useCallback(async (
+    name: string,
+    description: string,
+    blendStrategy: string = 'fusion'
+  ) => {
+    try {
+      setLoading(true);
+      const blend = await traditionApi.createBlend({
+        name,
+        description,
+        blend_strategy: blendStrategy,
+      });
+      setCurrentBlend(blend);
+      setError(null);
+      return blend;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create blend';
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const addTradition = useCallback(async (
+    traditionId: string,
+    weight: number,
+    sectionOrder?: number
+  ) => {
+    if (!currentBlend) {
+      throw new Error('No active blend');
+    }
+
+    try {
+      setLoading(true);
+      const result = await traditionApi.addTraditionToBlend(
+        currentBlend.id,
+        traditionId,
+        weight,
+        sectionOrder
+      );
+      setError(null);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add tradition';
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBlend]);
+
+  const generateParameters = useCallback(async (
+    sectionType: string = 'full'
+  ) => {
+    if (!currentBlend) {
+      throw new Error('No active blend');
+    }
+
+    try {
+      setLoading(true);
+      const parameters = await traditionApi.generateBlendParameters(
+        currentBlend.id,
+        sectionType
+      );
+      setError(null);
+      return parameters;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate parameters';
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBlend]);
+
+  return {
+    currentBlend,
+    loading,
+    error,
+    createBlend,
+    addTradition,
+    generateParameters,
+  };
+}

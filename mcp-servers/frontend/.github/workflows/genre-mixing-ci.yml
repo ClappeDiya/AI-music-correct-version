@@ -1,0 +1,118 @@
+name: Genre Mixing CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/app/genre-mixing/**"
+      - "frontend/src/components/tracks/**"
+      - "frontend/src/services/trackReferenceService.ts"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/src/app/genre-mixing/**"
+      - "frontend/src/components/tracks/**"
+      - "frontend/src/services/trackReferenceService.ts"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run linting
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run type checking
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 30
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build application
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/.next
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/.next
+
+      - name: Deploy to production
+        run: echo "Add your deployment steps here"
+        # Add actual deployment steps based on your hosting platform
+
+      - name: Notify deployment
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: "deployments"
+          slack-message: "Genre Mixing module deployed successfully! :rocket:"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

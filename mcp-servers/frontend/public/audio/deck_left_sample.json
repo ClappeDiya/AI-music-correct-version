@@ -1,0 +1,12 @@
+{
+  "format": "audio/wav",
+  "sampleRate": 44100,
+  "channels": 2,
+  "bpm": 128,
+  "key": "C",
+  "duration": 32,
+  "genre": "House",
+  "waveform": "sine",
+  "frequency": 440,
+  "amplitude": 0.8
+}

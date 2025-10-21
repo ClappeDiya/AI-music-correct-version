@@ -1,0 +1,210 @@
+name: Billing System CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/app/billing/**"
+      - "src/app/api/billing/**"
+      - "tests/billing.spec.ts"
+      - "tests/subscription.spec.ts"
+      - "tests/invoice-reconciliation.spec.ts"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/billing/**"
+      - "src/app/api/billing/**"
+      - "tests/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    environment: test
+
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run type checking
+        run: npm run type-check
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          TEST_BASE_URL: http://localhost:3000
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run npm audit
+        run: npm audit
+
+      - name: Run OWASP dependency check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "billing-system"
+          path: "."
+          format: "HTML"
+
+      - name: Check for sensitive data exposure
+        run: |
+          npx detect-secrets scan .
+          npx gitleaks protect --verbose
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.STAGING_API_URL }}
+
+      - name: Deploy to staging
+        run: |
+          # Deploy with zero-downtime strategy
+          echo "Deploying to staging..."
+          # Your deployment commands here
+
+      - name: Run smoke tests
+        run: |
+          npm run test:smoke
+          curl -f ${{ secrets.STAGING_URL }}/api/health
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+
+      - name: Deploy to production
+        run: |
+          # Deploy with zero-downtime strategy
+          echo "Starting blue-green deployment..."
+          # Your deployment commands here
+
+      - name: Verify deployment
+        run: |
+          # Health check
+          curl -f ${{ secrets.PRODUCTION_URL }}/api/health
+
+          # Verify Stripe webhook endpoint
+          curl -f ${{ secrets.PRODUCTION_URL }}/api/webhooks/stripe
+
+      - name: Run post-deployment tests
+        run: |
+          # Run critical path tests
+          npm run test:critical-paths
+
+          # Verify payment processing
+          npm run test:payment-verification
+
+  compliance-check:
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Run PCI compliance scan
+        run: |
+          # Run automated compliance checks
+          echo "Running PCI compliance scan..."
+          # Your compliance check commands here
+
+      - name: Verify data encryption
+        run: |
+          # Verify encryption at rest
+          echo "Verifying data encryption..."
+          # Your encryption verification commands here
+
+      - name: Check access controls
+        run: |
+          # Verify RLS policies
+          echo "Checking access controls..."
+          # Your access control verification commands here
+
+      - name: Generate compliance report
+        run: |
+          echo "Generating compliance report..."
+          # Generate and store compliance report
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-production, compliance-check]
+    if: always()
+
+    steps:
+      - name: Notify team
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const message = `Deployment Status:
+              - Tests: ${{ needs.test.result }}
+              - Security Scan: ${{ needs.security-scan.result }}
+              - Staging: ${{ needs.deploy-staging.result }}
+              - Production: ${{ needs.deploy-production.result }}
+              - Compliance: ${{ needs.compliance-check.result }}`
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            })

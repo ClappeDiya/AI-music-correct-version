@@ -1,0 +1,15 @@
+{
+  "common": {
+    "select-language": "Sprache auswählen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg"
+  },
+  "settings": {
+    "language": "Sprache",
+    "theme": "Thema",
+    "notifications": "Benachrichtigungen"
+  }
+}

@@ -1,0 +1,100 @@
+name: Admin Tools CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/components/admin-tools/**"
+      - "frontend/src/services/admin-tools/**"
+      - "backend/admin_tools/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/src/components/admin-tools/**"
+      - "frontend/src/services/admin-tools/**"
+      - "backend/admin_tools/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+        python-version: [3.11]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Frontend Setup & Tests
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Frontend Tests
+        working-directory: frontend
+        run: |
+          npm run test -- --coverage --watchAll=false
+          npm run lint
+
+      # Backend Setup & Tests
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Backend Tests
+        working-directory: backend
+        run: |
+          python -m pytest tests/admin_tools/ --cov=admin_tools --cov-report=xml
+          flake8 admin_tools/
+
+      - name: Upload Coverage Reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/coverage-final.json,./backend/coverage.xml
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Build and Push Docker Images
+        run: |
+          docker build -t admin-tools-frontend ./frontend
+          docker build -t admin-tools-backend ./backend
+          aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
+          docker tag admin-tools-frontend:latest ${{ secrets.AWS_ECR_REGISTRY }}/admin-tools-frontend:latest
+          docker tag admin-tools-backend:latest ${{ secrets.AWS_ECR_REGISTRY }}/admin-tools-backend:latest
+          docker push ${{ secrets.AWS_ECR_REGISTRY }}/admin-tools-frontend:latest
+          docker push ${{ secrets.AWS_ECR_REGISTRY }}/admin-tools-backend:latest
+
+      - name: Update ECS Services
+        run: |
+          aws ecs update-service --cluster prod-cluster --service admin-tools-frontend --force-new-deployment
+          aws ecs update-service --cluster prod-cluster --service admin-tools-backend --force-new-deployment

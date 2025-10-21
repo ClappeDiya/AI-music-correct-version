@@ -1,0 +1,65 @@
+import { useState, useCallback } from 'react';
+import { voiceRecognition } from '../services/voiceRecognitionService';
+import { useLanguageStore } from '../services/languageService';
+import axios from 'axios';
+
+interface UseVoiceCommandOptions {
+  sessionId: number;
+  onCommandProcessed?: (action: string) => void;
+  onError?: (error: Error) => void;
+}
+
+export const useVoiceCommand = ({
+  sessionId,
+  onCommandProcessed,
+  onError,
+}: UseVoiceCommandOptions) => {
+  const [isListening, setIsListening] = useState(false);
+  const [lastCommand, setLastCommand] = useState('');
+  const { preferredLanguage } = useLanguageStore();
+
+  const processVoiceCommand = useCallback(async (commandText: string) => {
+    try {
+      const response = await axios.post(`/api/ai_dj/sessions/${sessionId}/process-voice_command/`, {
+        command_text: commandText,
+      });
+
+      const { action } = response.data;
+      onCommandProcessed?.(action);
+      return action;
+    } catch (error) {
+      onError?.(error as Error);
+      return null;
+    }
+  }, [sessionId, onCommandProcessed, onError]);
+
+  const startListening = useCallback(() => {
+    if (isListening) return;
+
+    voiceRecognition.start({
+      onResult: async (text) => {
+        setLastCommand(text);
+        await processVoiceCommand(text);
+      },
+      onError: (error) => {
+        onError?.(error);
+        setIsListening(false);
+      },
+      onStart: () => setIsListening(true),
+      onEnd: () => setIsListening(false),
+    });
+  }, [isListening, processVoiceCommand, onError]);
+
+  const stopListening = useCallback(() => {
+    if (!isListening) return;
+    voiceRecognition.stop();
+    setIsListening(false);
+  }, [isListening]);
+
+  return {
+    isListening,
+    lastCommand,
+    startListening,
+    stopListening,
+  };
+};

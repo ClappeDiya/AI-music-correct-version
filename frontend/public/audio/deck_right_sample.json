@@ -1,0 +1,12 @@
+{
+  "format": "audio/wav",
+  "sampleRate": 44100,
+  "channels": 2,
+  "bpm": 128,
+  "key": "Am",
+  "duration": 32,
+  "genre": "Techno",
+  "waveform": "square",
+  "frequency": 440,
+  "amplitude": 0.8
+}

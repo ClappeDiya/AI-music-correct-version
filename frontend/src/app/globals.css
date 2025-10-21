@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Modern Warm Light Mode Theme - Defining HSL values */
+    --background: 40 33% 97%; /* #FAF9F5 - Warm cream white */
+    --foreground: 0 0% 10%; /* #1A1A1A - Dark text */
+    
+    --card: 40 33% 97%; /* #FAF9F5 */
+    --card-foreground: 0 0% 10%; /* #1A1A1A */
+    
+    --popover: 40 33% 97%; /* #FAF9F5 */
+    --popover-foreground: 0 0% 10%; /* #1A1A1A */
+    
+    --primary: 180 100% 45%; /* #00E6E6 - Adjusted blue */
+    --primary-foreground: 0 0% 10%; /* #1A1A1A */
+    
+    --secondary: 285 100% 45%; /* #9F00E6 - Adjusted purple */
+    --secondary-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --muted: 40 20% 90%; /* #EEE9E1 - Warm light gray */
+    --muted-foreground: 0 0% 40%; /* #666666 */
+    
+    --accent: 285 100% 45%; /* #9F00E6 - Adjusted purple */
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --destructive: 0 84% 60%; /* Maintaining consistency */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --border: 40 20% 85%; /* #E5DFD7 - Warm border color */
+    --input: 40 20% 85%; /* #E5DFD7 */
+    --ring: 180 100% 45%; /* #00E6E6 - Adjusted blue */
+    
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Converting hex colors to HSL values for Tailwind */
+    --background: 240 23% 15%; /* #1A1A2E */
+    --foreground: 0 0% 94%; /* #F0F0F0 */
+    
+    --card: 240 23% 15%; /* #1A1A2E */
+    --card-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --popover: 240 23% 15%; /* #1A1A2E */
+    --popover-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --primary: 338 81% 51%; /* #E81D6E - Neon Pink */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --secondary: 257 53% 57%; /* #6E56CF - Vibrant Purple */
+    --secondary-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --muted: 0 0% 46%; /* #757575 - Neutral Gray */
+    --muted-foreground: 0 0% 94%; /* #F0F0F0 */
+    
+    --accent: 257 53% 57%; /* #6E56CF - Vibrant Purple */
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --destructive: 0 84.2% 60.2%; /* Keeping original */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    
+    --border: 0 0% 46%; /* #757575 - Neutral Gray */
+    --input: 0 0% 46%; /* #757575 - Neutral Gray */
+    --ring: 338 81% 51%; /* #E81D6E - Neon Pink */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html, body {
+    @apply h-full;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Add custom glow effects for primary and secondary elements */
+@layer components {
+  .glow-primary {
+    box-shadow: 0 0 15px rgba(232, 29, 110, 0.5);
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .glow-primary:hover {
+    box-shadow: 0 0 20px rgba(232, 29, 110, 0.7);
+  }
+  
+  .glow-secondary {
+    box-shadow: 0 0 15px rgba(110, 86, 207, 0.5);
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .glow-secondary:hover {
+    box-shadow: 0 0 20px rgba(110, 86, 207, 0.7);
+  }
+  
+  .gradient-bg {
+    background: linear-gradient(135deg, rgba(232, 29, 110, 0.15) 0%, rgba(110, 86, 207, 0.15) 100%);
+  }
+
+  /* Futuristic Light Theme Specific Styles */
+  .light .glow-primary {
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .light .glow-primary:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+  }
+  
+  .light .glow-secondary {
+    box-shadow: 0 0 15px rgba(178, 0, 255, 0.5);
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .light .glow-secondary:hover {
+    box-shadow: 0 0 20px rgba(178, 0, 255, 0.7);
+  }
+  
+  .light .gradient-bg {
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.15) 0%, rgba(178, 0, 255, 0.15) 100%);
+  }
+
+  /* Futuristic neon gradient for light theme */
+  .light .neon-gradient {
+    background: linear-gradient(90deg, #00FFFF, #B200FF);
+    background-size: 200% 200%;
+    animation: gradientFlow 3s ease infinite;
+  }
+
+  .light .neon-border {
+    border: 1px solid transparent;
+    background: linear-gradient(90deg, #00FFFF, #B200FF) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+  }
+
+  @keyframes gradientFlow {
+    0% {background-position: 0% 50%}
+    50% {background-position: 100% 50%}
+    100% {background-position: 0% 50%}
+  }
+}

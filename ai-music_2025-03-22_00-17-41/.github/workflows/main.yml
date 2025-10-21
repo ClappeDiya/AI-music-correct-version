@@ -1,0 +1,154 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+        python-version: [3.11]
+
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov black isort mypy
+
+      - name: Install Node.js dependencies
+        run: |
+          npm ci
+          npm install -g typescript jest eslint prettier
+
+      - name: Run Python linting
+        run: |
+          black . --check
+          isort . --check-only
+          mypy .
+
+      - name: Run JavaScript/TypeScript linting
+        run: |
+          npm run lint
+          npm run type-check
+
+      - name: Run Python tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          pytest --cov=. --cov-report=xml
+
+      - name: Run JavaScript/TypeScript tests
+        run: |
+          npm test -- --coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml,./coverage/coverage-final.json
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python manage.py collectstatic --noinput
+
+      - name: Build and push Docker images
+        run: |
+          docker build -t ${{ secrets.ECR_REGISTRY }}/frontend:${{ github.sha }} -f frontend/Dockerfile .
+          docker build -t ${{ secrets.ECR_REGISTRY }}/backend:${{ github.sha }} -f backend/Dockerfile .
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+          docker push ${{ secrets.ECR_REGISTRY }}/frontend:${{ github.sha }}
+          docker push ${{ secrets.ECR_REGISTRY }}/backend:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update ECS services
+        run: |
+          aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER }} --service frontend --force-new-deployment
+          aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER }} --service backend --force-new-deployment
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+
+      - name: Run database migrations
+        run: |
+          aws ecs run-task --cluster ${{ secrets.ECS_CLUSTER }} --task-definition migrations --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.SUBNET_IDS }}],securityGroups=[${{ secrets.SECURITY_GROUP_IDS }}]}" --launch-type FARGATE
+
+      - name: Notify deployment status
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "Deployment to production ${{ job.status == 'success' && 'completed successfully' || 'failed' }} :${{ job.status == 'success' && 'white_check_mark' || 'x' }}:"

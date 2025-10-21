@@ -1,0 +1,102 @@
+// Data anonymization utilities
+
+interface AnonymizationOptions {
+  threshold?: number;
+  precision?: number;
+  mask?: boolean;
+}
+
+export function anonymizeData<T extends Record<string, any>>(
+  data: T[],
+  sensitiveFields: string[],
+  options: AnonymizationOptions = {}
+): T[] {
+  const {
+    threshold = 5,
+    precision = 2,
+    mask = true,
+  } = options;
+
+  return data.map((item) => {
+    const anonymized = { ...item };
+
+    sensitiveFields.forEach((field) => {
+      if (field in item) {
+        if (typeof item[field] === "number") {
+          // Round numbers to reduce precision
+          anonymized[field] = Number(item[field].toFixed(precision));
+        } else if (typeof item[field] === "string") {
+          if (mask) {
+            // Mask strings (e.g., emails, names)
+            anonymized[field] = maskString(item[field]);
+          } else {
+            // Group into buckets if count is below threshold
+            anonymized[field] = "[Redacted]";
+          }
+        }
+      }
+    });
+
+    return anonymized;
+  });
+}
+
+export function aggregateData<T extends Record<string, any>>(
+  data: T[],
+  groupBy: string[],
+  metrics: string[],
+  options: AnonymizationOptions = {}
+): Record<string, any>[] {
+  const { threshold = 5 } = options;
+
+  // Group data
+  const groups = new Map<string, T[]>();
+  data.forEach((item) => {
+    const key = groupBy.map((field) => item[field]).join("-");
+    const group = groups.get(key) || [];
+    group.push(item);
+    groups.set(key, group);
+  });
+
+  // Aggregate and anonymize
+  return Array.from(groups.entries())
+    .filter(([_, group]) => group.length >= threshold) // Remove small groups
+    .map(([key, group]) => {
+      const result: Record<string, any> = {};
+
+      // Add group keys
+      groupBy.forEach((field, index) => {
+        result[field] = group[0][field];
+      });
+
+      // Add aggregated metrics
+      metrics.forEach((metric) => {
+        result[metric] = aggregateMetric(
+          group.map((item) => item[metric])
+        );
+      });
+
+      return result;
+    });
+}
+
+function maskString(str: string): string {
+  if (str.includes("@")) {
+    // Email masking
+    const [local, domain] = str.split("@");
+    return `${local[0]}***@${domain}`;
+  }
+
+  // General string masking
+  if (str.length <= 2) return str;
+  return str[0] + "*".repeat(str.length - 2) + str[str.length - 1];
+}
+
+function aggregateMetric(values: any[]): number {
+  if (!values.length) return 0;
+  if (typeof values[0] !== "number") return values.length;
+
+  // Calculate average for numbers
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  return Number((sum / values.length).toFixed(2));
+}

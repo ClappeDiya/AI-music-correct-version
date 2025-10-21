@@ -1,0 +1,9 @@
+Metadata-Version: 2.2
+Name: ai-music
+Version: 0.1
+Requires-Dist: Django>=4.2
+Requires-Dist: djangorestframework
+Requires-Dist: pyotp
+Requires-Dist: pytest
+Requires-Dist: pytest-django
+Dynamic: requires-dist
